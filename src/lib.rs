@@ -2,7 +2,7 @@ use definitions::Satisfiability;
 
 /*
 
-Source: 
+Source:
     https://www.cse.iitb.ac.in/~akg/courses/2022-ar/lec-06-cdcl.pdf
 
 Definitions:
@@ -44,9 +44,9 @@ pub mod dpll;
 
 #[cfg(test)]
 mod test {
-    use crate::Solver;
-    use crate::definitions::{Clause, Literal, CNF, Satisfiability};
+    use crate::definitions::{Clause, Literal, Satisfiability, CNF};
     use crate::dpll::DPLLSolver;
+    use crate::Solver;
     #[test]
     fn case_1() {
         let a = Literal::new("a".to_string());
@@ -65,7 +65,6 @@ mod test {
                     .add_literal(a.negated())
                     .add_literal(c.positive()),
             );
-
 
         assert_eq!(DPLLSolver::new(formula).solve(), Satisfiability::SAT);
     }
@@ -93,7 +92,6 @@ mod test {
                     .add_literal(b.negated())
                     .add_literal(c.negated()),
             );
-
 
         assert_eq!(DPLLSolver::new(formula).solve(), Satisfiability::SAT);
     }
@@ -157,8 +155,69 @@ mod test {
             .add_clause(c7)
             .add_clause(c8);
 
-
         assert_eq!(DPLLSolver::new(formula).solve(), Satisfiability::SAT);
+    }
 
+    #[test]
+    fn case_4() {
+        /*
+           (x∨y∨z)∧(x∨y∨¬z)∧(x∨¬y∨z)∧(x∨¬y∨¬z)∧(¬x∨y∨z)∧(¬x∨y∨¬z)∧(¬x∨¬y∨z)∧(¬x∨¬y∨¬z)
+        */
+
+        let x = Literal::new("x".to_string());
+        let y = Literal::new("y".to_string());
+        let z = Literal::new("z".to_string());
+
+        let c1 = Clause::new()
+            .add_literal(x.positive())
+            .add_literal(y.positive())
+            .add_literal(z.positive());
+
+        let c2 = Clause::new()
+            .add_literal(x.positive())
+            .add_literal(y.positive())
+            .add_literal(z.negated());
+
+        let c3 = Clause::new()
+            .add_literal(x.positive())
+            .add_literal(y.negated())
+            .add_literal(z.positive());
+
+        let c4 = Clause::new()
+            .add_literal(x.positive())
+            .add_literal(y.negated())
+            .add_literal(z.negated());
+
+        let c5 = Clause::new()
+            .add_literal(x.negated())
+            .add_literal(y.positive())
+            .add_literal(z.positive());
+
+        let c6 = Clause::new()
+            .add_literal(x.negated())
+            .add_literal(y.positive())
+            .add_literal(z.negated());
+
+        let c7 = Clause::new()
+            .add_literal(x.negated())
+            .add_literal(y.negated())
+            .add_literal(z.positive());
+
+        let c8 = Clause::new()
+            .add_literal(x.negated())
+            .add_literal(y.negated())
+            .add_literal(z.negated());
+
+        let formula = CNF::new()
+            .add_clause(c1)
+            .add_clause(c2)
+            .add_clause(c3)
+            .add_clause(c4)
+            .add_clause(c5)
+            .add_clause(c6)
+            .add_clause(c7)
+            .add_clause(c8);
+
+        assert_eq!(DPLLSolver::new(formula).solve(), Satisfiability::UNSAT);
     }
 }

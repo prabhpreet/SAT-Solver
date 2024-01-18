@@ -1,11 +1,5 @@
 //CNF Definitions
-use std::collections::{HashMap, HashSet};
-
-#[derive(Debug, PartialEq)]
-pub enum Satisfiability {
-    SAT,
-    UNSAT
-}
+use std::{collections::{HashMap, HashSet}, vec};
 
 //Literal identified by its unique name
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
@@ -25,7 +19,7 @@ impl Literal {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum SignedLiteral {
     Literal(Literal),
     NegatedLiteral(Literal),
@@ -83,18 +77,48 @@ impl Assignments {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Clause {
-    literals: Vec<SignedLiteral>,
+    literals: HashSet<SignedLiteral>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ClauseValue {
+    True,
+    False,
+    Clause(Clause),
+}
+
+impl ClauseValue {
+    pub fn is_true(&self) -> bool {
+        match self {
+            ClauseValue::True => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_false(&self) -> bool {
+        match self {
+            ClauseValue::False => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_clause(&self) -> bool {
+        match self {
+            ClauseValue::Clause(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Clause {
     pub fn new() -> Clause {
-        Clause { literals: Vec::new() }
+        Clause { literals: HashSet::new() }
     }
 
     pub fn add_literal(mut self, literal: SignedLiteral) -> Self {
-        self.literals.push(literal);
+        self.literals.insert(literal);
         self
     }
 
@@ -102,66 +126,72 @@ impl Clause {
         self.literals.iter()
     }
 
-    fn evaluate(&self, assignments: &Assignments) -> LiteralValue {
+    pub fn evaluate(mut self, assignments: &Assignments) -> ClauseValue {
+        let mut mark_for_removal = vec![];
         for literal in self.literals.iter() {
             match literal.evaluate(assignments) {
                 // C is true if l in C st l is true
                 LiteralValue::True => {
-                    return LiteralValue::True;
+                    return ClauseValue::True;
                 }
                 // Otherwise C is unassigned
-                LiteralValue::Unassigned => {
-                    return LiteralValue::Unassigned;
-                }
+                LiteralValue::Unassigned => { }
 
                 // C is false if for each l in C, l is false
-                LiteralValue::False => {}
+                LiteralValue::False => {
+                    mark_for_removal.push(literal.clone());
+                }
             }
         }
-        LiteralValue::False
+
+        for literal in mark_for_removal.iter() {
+            self.literals.remove(&literal);
+        }
+
+        if self.literals.is_empty() {
+            ClauseValue::False
+        } else {
+            ClauseValue::Clause(self)
+        }
     }
 
-    pub fn is_unit_clause(&self, literal: SignedLiteral, assignments: &Assignments) -> bool {
+    pub fn is_unit_clause(&self, literal: SignedLiteral) -> bool {
         //C is an unit clause under m if a literal l in C is unassigned and the rest are false
         // l is a unit literal
-
-        match assignments.0.get(&literal.literal()) {
-            Some(&LiteralValue::Unassigned) | None => {
-                let mut unassigned_count = 0;
-
-                for l in self.literals.iter() {
-                    if l == &literal {
-                        unassigned_count += 1;
-                        continue;
-                    } else {
-                        match l.evaluate(assignments) {
-                            LiteralValue::Unassigned => {
-                                //Other unassigned literals
-                                return false;
-                            }
-                            LiteralValue::False => {}
-                            LiteralValue::True => {
-                                return false;
-                            }
-                        }
-                    }
-                }
-
-                if unassigned_count == 1 {
-                    true
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        }
+        self.literals.get(&literal).is_some() && self.literals.len() == 1
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CNF {
     clauses: Vec<Clause>,
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum CNFValue {
+    SAT,
+    UNSAT,
+    Formula(CNF),
+}
+
+impl CNFValue {
+    pub fn unwrap(self) -> Satisfiability {
+        match self {
+            CNFValue::SAT => Satisfiability::SAT,
+            CNFValue::UNSAT => Satisfiability::UNSAT,
+            CNFValue::Formula(_) => panic!("Unresolved satisfiability"),
+        }
+    }
+    
+    pub fn evaluate(self, assignments: &Assignments) -> CNFValue {
+        match self {
+            CNFValue::Formula(f) => f.evaluate(assignments),
+            _ => self,
+        }
+    }
+}
+
+
 
 impl CNF {
     pub fn new() -> CNF {
@@ -177,22 +207,27 @@ impl CNF {
         self.clauses.iter()
     }
 
-    pub fn evaluate(&self, assignments: &Assignments) -> LiteralValue {
-        for clause in self.clauses.iter() {
+    pub fn evaluate(self, assignments: &Assignments) -> CNFValue{
+        let mut clauses = vec![];        
+        for clause in self.clauses.into_iter() {
             match clause.evaluate(assignments) {
                 // CNF F is false if there is C in F st C is false
-                LiteralValue::False => {
-                    return LiteralValue::False;
+                ClauseValue::False => {
+                    return CNFValue::UNSAT;
                 }
                 // Otherwise CNF F is unassigned
-                LiteralValue::Unassigned => {
-                    return LiteralValue::Unassigned;
+                ClauseValue::Clause(c) => {
+                    clauses.push(c);
                 }
                 //CNF F is true if for each C in F, C is true
-                LiteralValue::True => {}
+                ClauseValue::True => {}
             }
         }
-        LiteralValue::True
+        if clauses.is_empty() {
+            CNFValue::SAT
+        } else {
+            CNFValue::Formula(CNF { clauses })
+        }
     }
 
     pub fn unassigned_literals(&self, assignments: &Assignments) -> HashSet<Literal> {
@@ -209,6 +244,12 @@ impl CNF {
         }
         unassigned_literals
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Satisfiability {
+    SAT,
+    UNSAT,
 }
 
 #[cfg(test)]
@@ -268,18 +309,22 @@ mod tests {
             let mut assignments = Assignments::new();
             assignments.assign(p1.clone(),LiteralValue::False);
 
-            assert_eq!(c1.evaluate(&assignments), LiteralValue::True);
-            assert!(!c1.is_unit_clause(p2.positive(), &assignments));
-
+            assert_eq!(c1.clone().evaluate(&assignments),ClauseValue::True);
         }  
 
         {
             let mut assignments = Assignments::new();
             assignments.assign(p2.clone(),LiteralValue::False);
 
-            assert_eq!(c1.evaluate(&assignments), LiteralValue::Unassigned);
-            assert!(c1.is_unit_clause(p1.negated(), &assignments));
-            assert!(!c1.is_unit_clause(p1.positive(), &assignments));
+            let c = c1.clone().evaluate(&assignments);
+            println!("c: {:?}",c);
+            match c {
+                ClauseValue::Clause(c) => {
+                    assert!( c.is_unit_clause(p1.negated()));
+                    assert!(!c.is_unit_clause(p1.positive()));
+                }
+                _ => panic!("Expected clause"),
+            }
         }  
 
         let _formula = CNF::new()
