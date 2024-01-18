@@ -1,3 +1,5 @@
+use definitions::Satisfiability;
+
 /*
 
 Source: 
@@ -19,6 +21,11 @@ Definitions:
 */
 pub mod definitions;
 
+pub trait Solver {
+    fn new(f: crate::definitions::CNF) -> Self;
+    fn solve(self) -> Satisfiability;
+}
+
 /*
 DPLL
     Input: CNF F
@@ -37,8 +44,9 @@ pub mod dpll;
 
 #[cfg(test)]
 mod test {
-    use crate::definitions::{Clause, Literal, CNF};
-    use crate::dpll::{dpll, Satisfeability};
+    use crate::Solver;
+    use crate::definitions::{Clause, Literal, CNF, Satisfiability};
+    use crate::dpll::DPLLSolver;
     #[test]
     fn case_1() {
         let a = Literal::new("a".to_string());
@@ -59,7 +67,7 @@ mod test {
             );
 
 
-        assert_eq!(dpll(&formula), Satisfeability::SAT);
+        assert_eq!(DPLLSolver::new(formula).solve(), Satisfiability::SAT);
     }
 
     #[test]
@@ -87,7 +95,7 @@ mod test {
             );
 
 
-        assert_eq!(dpll(&formula), Satisfeability::SAT);
+        assert_eq!(DPLLSolver::new(formula).solve(), Satisfiability::SAT);
     }
 
     #[test]
@@ -150,7 +158,7 @@ mod test {
             .add_clause(c8);
 
 
-        assert_eq!(dpll(&formula), Satisfeability::SAT);
+        assert_eq!(DPLLSolver::new(formula).solve(), Satisfiability::SAT);
 
     }
 }

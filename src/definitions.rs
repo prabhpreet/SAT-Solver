@@ -1,6 +1,12 @@
 //CNF Definitions
 use std::collections::{HashMap, HashSet};
 
+#[derive(Debug, PartialEq)]
+pub enum Satisfiability {
+    SAT,
+    UNSAT
+}
+
 //Literal identified by its unique name
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct Literal(String);
@@ -211,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_clause() {
-                /*
+        /*
            c1 = (¬p1 ∨ p2)
            c2 = (¬p1 ∨ p3 ∨ p5)
            c3 = (¬p2 ∨ p4)
@@ -276,7 +282,7 @@ mod tests {
             assert!(!c1.is_unit_clause(p1.positive(), &assignments));
         }  
 
-        let formula = CNF::new()
+        let _formula = CNF::new()
             .add_clause(c1)
             .add_clause(c2)
             .add_clause(c3)
