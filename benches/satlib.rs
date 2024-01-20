@@ -20,7 +20,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         let mut solvers : Vec<(String,Box<dyn Solver>)> = vec![];
 
         solvers.push(("Single Threaded".to_string(),DPLLSolverBuilder::new().build(cnf.clone())));
-        for i in 1..10 {
+        for i in 1..5 {
             solvers.push(("Parallel factor:".to_string() + &i.to_string(),PDPLLSolverBuilder::new(i).build(cnf.clone())));
         }
 

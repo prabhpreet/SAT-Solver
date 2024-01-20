@@ -106,8 +106,11 @@ pub struct Clause {
 pub enum ClauseValue {
     True,
     False,
-    Clause(Clause),
+    Clause(ClauseRef),
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClauseRef(Arc<Clause>);
 
 impl ClauseValue {
     pub fn is_true(&self) -> bool {
@@ -133,22 +136,44 @@ impl ClauseValue {
 }
 
 impl Clause {
-    pub fn new() -> Clause {
-        Clause { literals: HashSet::new() }
+    pub fn new() -> ClauseRef {
+        ClauseRef::new()
+    }
+}
+
+pub struct ClauseBuilder {
+    clause: Clause,
+}
+
+impl ClauseBuilder {
+    pub fn new() -> ClauseBuilder {
+        ClauseBuilder {
+            clause: Clause{ literals: HashSet::new() },
+        }
     }
 
     pub fn add_literal(mut self, literal: SignedLiteral) -> Self {
-        self.literals.insert(literal);
+        self.clause.literals.insert(literal);
         self
     }
 
-    pub fn signed_literal(&self) -> impl Iterator<Item = &SignedLiteral> {
-        self.literals.iter()
+    pub fn build(self) -> ClauseRef {
+        ClauseRef(Arc::new(self.clause))
+    }
+}
+
+impl ClauseRef {
+    pub fn new() -> ClauseRef {
+        ClauseRef(Arc::new(Clause{ literals: HashSet::new() }))
     }
 
-    pub fn evaluate(mut self, assignments: &Assignments) -> ClauseValue {
+    pub fn signed_literal(&self) -> impl Iterator<Item = &SignedLiteral> {
+        self.0.literals.iter()
+    }
+
+    pub fn evaluate(self, assignments: &Assignments) -> ClauseValue {
         let mut mark_for_removal = vec![];
-        for literal in self.literals.iter() {
+        for literal in self.0.literals.iter() {
             match literal.evaluate(assignments) {
                 // C is true if l in C st l is true
                 LiteralValue::True => {
@@ -164,13 +189,19 @@ impl Clause {
             }
         }
 
-        for literal in mark_for_removal.iter() {
-            self.literals.remove(&literal);
-        }
+        if !mark_for_removal.is_empty() {
+            let mut deep_clone = (*self.0).clone();
+            for literal in mark_for_removal.iter() {
+                deep_clone.literals.remove(&literal);
+            }
 
-        if self.literals.is_empty() {
-            ClauseValue::False
-        } else {
+            if deep_clone.literals.is_empty() {
+                ClauseValue::False
+            } else {
+                ClauseValue::Clause(ClauseRef(Arc::new(deep_clone)))
+            }
+        }
+        else {
             ClauseValue::Clause(self)
         }
     }
@@ -178,8 +209,8 @@ impl Clause {
     pub fn is_unit_clause(&self) -> Option<SignedLiteral> {
         //C is an unit clause under m if a literal l in C is unassigned and the rest are false
         // l is a unit literal
-        if self.literals.len() == 1 {
-            self.literals.iter().next().cloned()
+        if self.0.literals.len() == 1 {
+            self.0.literals.iter().next().cloned()
         }
         else {
             None
@@ -189,7 +220,7 @@ impl Clause {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CNF {
-    clauses: Vec<Clause>,
+    clauses: Vec<ClauseRef>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -222,12 +253,12 @@ impl CNF {
         CNF { clauses: Vec::new() }
     }
 
-    pub fn add_clause(mut self, clause: Clause) -> Self {
+    pub fn add_clause(mut self, clause: ClauseRef) -> Self {
         self.clauses.push(clause);
         self
     }
 
-    pub fn clauses(&self) -> impl Iterator<Item = &Clause> {
+    pub fn clauses(&self) -> impl Iterator<Item = &ClauseRef> {
         self.clauses.iter()
     }
 
@@ -264,7 +295,7 @@ impl From<DimacsCnf> for CNF {
     fn from(dimacs_cnf: DimacsCnf) -> Self {
         let mut cnf = CNF::new();
         for clause in dimacs_cnf.clauses() {
-            let mut c = Clause::new();
+            let mut c = ClauseBuilder::new();
             for literal in clause.iter() {
                 let lname = literal.abs().to_string();
                 if *literal > 0 {
@@ -273,7 +304,7 @@ impl From<DimacsCnf> for CNF {
                     c = c.add_literal(Literal::new(lname).complement());
                 }
             }
-            cnf = cnf.add_clause(c);
+            cnf = cnf.add_clause(c.build());
         }
         cnf
     }
@@ -310,33 +341,33 @@ mod tests {
         let p6 = Literal::new("p6".to_string());
         let p7 = Literal::new("p7".to_string());
 
-        let c1 = Clause::new()
+        let c1 = ClauseBuilder::new()
             .add_literal(p1.complement())
-            .add_literal(p2.positive());
-        let c2 = Clause::new()
+            .add_literal(p2.positive()).build();
+        let c2 = ClauseBuilder::new()
             .add_literal(p1.complement())
             .add_literal(p3.positive())
-            .add_literal(p5.positive());
-        let c3 = Clause::new()
+            .add_literal(p5.positive()).build();
+        let c3 = ClauseBuilder::new()
             .add_literal(p2.complement())
-            .add_literal(p4.positive());
-        let c4 = Clause::new()
+            .add_literal(p4.positive()).build();
+        let c4 = ClauseBuilder::new()
             .add_literal(p3.complement())
-            .add_literal(p4.complement());
-        let c5 = Clause::new()
+            .add_literal(p4.complement()).build();
+        let c5 = ClauseBuilder::new()
             .add_literal(p1.positive())
             .add_literal(p5.positive())
-            .add_literal(p2.complement());
-        let c6 = Clause::new()
+            .add_literal(p2.complement()).build();
+        let c6 = ClauseBuilder::new()
             .add_literal(p2.positive())
-            .add_literal(p3.positive());
-        let c7 = Clause::new()
+            .add_literal(p3.positive()).build();
+        let c7 = ClauseBuilder::new()
             .add_literal(p2.positive())
             .add_literal(p3.complement())
-            .add_literal(p7.positive());
-        let c8 = Clause::new()
+            .add_literal(p7.positive()).build();
+        let c8 = ClauseBuilder::new()
             .add_literal(p6.positive())
-            .add_literal(p5.complement());
+            .add_literal(p5.complement()).build();
 
         {
             let mut assignments = Assignments::new();

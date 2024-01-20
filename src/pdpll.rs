@@ -49,7 +49,7 @@ impl PDPLLSolver {
     fn dpll_recursive(&self, formula: CNFValue, m: Assignments, par: bool) -> CNFValue {
         match formula.evaluate(&m) {
             CNFValue::Formula(f) => {
-                //Unit propogation- unit p becomes a unit literal for some clause
+                //Unit clause propogation- unit p becomes a unit literal for some clause
                 let m = f.clauses().par_bridge().find_map_any(|clause| {
                     if let Some(l) = clause.is_unit_clause() {
                         let value = match l {
@@ -70,10 +70,13 @@ impl PDPLLSolver {
 
                 //First decision: Choose an unassigned literal p and a random bit b in {0,1} and check for satisfiability
                 let p = if par {
-                    f.iter_literals().map(|l| l.literal())
+                    f.iter_literals()
+                        .map(|l| l.literal())
                         .choose_multiple(&mut thread_rng(), self.par_factor)
                 } else {
-                    vec![f.iter_literals().map(|l| l.literal())
+                    vec![f
+                        .iter_literals()
+                        .map(|l| l.literal())
                         .choose(&mut thread_rng())
                         .unwrap()]
                 };
@@ -82,11 +85,8 @@ impl PDPLLSolver {
                     .iter()
                     .par_bridge()
                     .find_map_any(|p| {
-                        let value = if thread_rng().gen_bool(0.5) {
-                            LiteralValue::True
-                        } else {
-                            LiteralValue::False
-                        };
+                        //Positive bias
+                        let value = LiteralValue::True;
 
                         if self.dpll_recursive(
                             CNFValue::Formula(f.clone()),

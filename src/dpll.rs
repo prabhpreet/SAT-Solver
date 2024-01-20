@@ -65,11 +65,8 @@ impl DPLLSolver {
                 //First decision: Choose an unassigned literal p and a random bit b in {0,1} and check for satisfiability
                 let p = f.iter_literals()
                     .choose(&mut thread_rng()).unwrap().literal();
-                let value = if rand::thread_rng().gen_bool(0.5) {
-                    LiteralValue::True
-                } else {
-                    LiteralValue::False
-                };
+                //Positive bias
+                let value = LiteralValue::True;
 
                 debug!("Set {:?} to {:?}", p, value);
                 if self.dpll_recursive(

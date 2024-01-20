@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! sat_tests {
     ($builder: expr) => {
-    use crate::definitions::{Clause, Literal, Satisfiability, CNF};
+    use crate::definitions::{ClauseBuilder, Literal, Satisfiability, CNF};
     use crate::{SolverBuilder};
 
     #[test]
@@ -13,14 +13,14 @@ macro_rules! sat_tests {
         // CNF: (a v b) ^ (~a v c)
         let formula = CNF::new()
             .add_clause(
-                Clause::new()
+                ClauseBuilder::new()
                     .add_literal(a.positive())
-                    .add_literal(b.positive()),
+                    .add_literal(b.positive()).build(),
             )
             .add_clause(
-                Clause::new()
+                ClauseBuilder::new()
                     .add_literal(a.complement())
-                    .add_literal(c.positive()),
+                    .add_literal(b.positive()).build(),
             );
 
         assert_eq!($builder.build(formula).solve(), Satisfiability::SAT);
@@ -35,19 +35,19 @@ macro_rules! sat_tests {
 
         let formula = CNF::new()
             .add_clause(
-                Clause::new()
+                ClauseBuilder::new()
                     .add_literal(a.positive())
-                    .add_literal(b.positive()),
+                    .add_literal(b.positive()).build(),
             )
             .add_clause(
-                Clause::new()
+                ClauseBuilder::new()
                     .add_literal(a.complement())
-                    .add_literal(c.positive()),
+                    .add_literal(c.positive()).build(),
             )
             .add_clause(
-                Clause::new()
+                ClauseBuilder::new()
                     .add_literal(b.complement())
-                    .add_literal(c.complement()),
+                    .add_literal(c.complement()).build(),
             );
 
         assert_eq!($builder.build(formula).solve(), Satisfiability::SAT);
@@ -74,33 +74,33 @@ macro_rules! sat_tests {
         let p6 = Literal::new("p6".to_string());
         let p7 = Literal::new("p7".to_string());
 
-        let c1 = Clause::new()
+        let c1 = ClauseBuilder::new()
             .add_literal(p1.complement())
-            .add_literal(p2.positive());
-        let c2 = Clause::new()
+            .add_literal(p2.positive()).build();
+        let c2 = ClauseBuilder::new()
             .add_literal(p1.complement())
             .add_literal(p3.positive())
-            .add_literal(p5.positive());
-        let c3 = Clause::new()
+            .add_literal(p5.positive()).build();
+        let c3 = ClauseBuilder::new()
             .add_literal(p2.complement())
-            .add_literal(p4.positive());
-        let c4 = Clause::new()
+            .add_literal(p4.positive()).build();
+        let c4 = ClauseBuilder::new()
             .add_literal(p3.complement())
-            .add_literal(p4.complement());
-        let c5 = Clause::new()
+            .add_literal(p4.complement()).build();
+        let c5 = ClauseBuilder::new()
             .add_literal(p1.positive())
             .add_literal(p5.positive())
-            .add_literal(p2.complement());
-        let c6 = Clause::new()
+            .add_literal(p2.complement()).build();
+        let c6 = ClauseBuilder::new()
             .add_literal(p2.positive())
-            .add_literal(p3.positive());
-        let c7 = Clause::new()
+            .add_literal(p3.positive()).build();
+        let c7 = ClauseBuilder::new()
             .add_literal(p2.positive())
             .add_literal(p3.complement())
-            .add_literal(p7.positive());
-        let c8 = Clause::new()
+            .add_literal(p7.positive()).build();
+        let c8 = ClauseBuilder::new()
             .add_literal(p6.positive())
-            .add_literal(p5.complement());
+            .add_literal(p5.complement()).build();
 
         let formula = CNF::new()
             .add_clause(c1)
@@ -125,45 +125,45 @@ macro_rules! sat_tests {
         let y = Literal::new("y".to_string());
         let z = Literal::new("z".to_string());
 
-        let c1 = Clause::new()
+        let c1 = ClauseBuilder::new()
             .add_literal(x.positive())
             .add_literal(y.positive())
-            .add_literal(z.positive());
+            .add_literal(z.positive()).build();
 
-        let c2 = Clause::new()
+        let c2 = ClauseBuilder::new()
             .add_literal(x.positive())
             .add_literal(y.positive())
-            .add_literal(z.complement());
+            .add_literal(z.complement()).build();
 
-        let c3 = Clause::new()
+        let c3 = ClauseBuilder::new()
             .add_literal(x.positive())
             .add_literal(y.complement())
-            .add_literal(z.positive());
+            .add_literal(z.positive()).build();
 
-        let c4 = Clause::new()
+        let c4 = ClauseBuilder::new()
             .add_literal(x.positive())
             .add_literal(y.complement())
-            .add_literal(z.complement());
+            .add_literal(z.complement()).build();
 
-        let c5 = Clause::new()
+        let c5 = ClauseBuilder::new()
             .add_literal(x.complement())
             .add_literal(y.positive())
-            .add_literal(z.positive());
+            .add_literal(z.positive()).build();
 
-        let c6 = Clause::new()
+        let c6 = ClauseBuilder::new()
             .add_literal(x.complement())
             .add_literal(y.positive())
-            .add_literal(z.complement());
+            .add_literal(z.complement()).build();
 
-        let c7 = Clause::new()
+        let c7 = ClauseBuilder::new()
             .add_literal(x.complement())
             .add_literal(y.complement())
-            .add_literal(z.positive());
+            .add_literal(z.positive()).build();
 
-        let c8 = Clause::new()
+        let c8 = ClauseBuilder::new()
             .add_literal(x.complement())
             .add_literal(y.complement())
-            .add_literal(z.complement());
+            .add_literal(z.complement()).build();
 
         let formula = CNF::new()
             .add_clause(c1)
