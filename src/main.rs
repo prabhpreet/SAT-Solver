@@ -1,5 +1,5 @@
 
-use sat_solver::{dimacs::parse_dimacs_cnf, definitions::CNF, dpll::{DPLLSolverBuilder}, Solver, SolverBuilder, pdpll::{PDPLLSolverBuilder}};
+use sat_solver::{dimacs::parse_dimacs_cnf, definitions::CNF, sdpll::{DPLLSolverBuilder}, Solver, SolverBuilder, pdpll::{PDPLLSolverBuilder}};
 fn main() {
     pretty_env_logger::init();
 

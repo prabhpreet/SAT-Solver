@@ -6,6 +6,7 @@ macro_rules! sat_tests {
 
     #[test]
     fn case_1() {
+        pretty_env_logger::try_init();
         let a = Literal::new("a".to_string());
         let b = Literal::new("b".to_string());
         let c = Literal::new("c".to_string());
@@ -14,13 +15,13 @@ macro_rules! sat_tests {
         let formula = CNF::new()
             .add_clause(
                 ClauseBuilder::new()
-                    .add_literal(a.positive())
-                    .add_literal(b.positive()).build(),
+                    .add_literal(a.identity())
+                    .add_literal(b.identity()).build(),
             )
             .add_clause(
                 ClauseBuilder::new()
-                    .add_literal(a.complement())
-                    .add_literal(b.positive()).build(),
+                    .add_literal(a.not())
+                    .add_literal(c.identity()).build(),
             );
 
         assert_eq!($builder.build(formula).solve(), Satisfiability::SAT);
@@ -28,6 +29,7 @@ macro_rules! sat_tests {
 
     #[test]
     fn case_2() {
+        pretty_env_logger::try_init();
         //CNF: (a v b) ^ (~a v c) ^ (~b v ~c)
         let a = Literal::new("a".to_string());
         let b = Literal::new("b".to_string());
@@ -36,18 +38,18 @@ macro_rules! sat_tests {
         let formula = CNF::new()
             .add_clause(
                 ClauseBuilder::new()
-                    .add_literal(a.positive())
-                    .add_literal(b.positive()).build(),
+                    .add_literal(a.identity())
+                    .add_literal(b.identity()).build(),
             )
             .add_clause(
                 ClauseBuilder::new()
-                    .add_literal(a.complement())
-                    .add_literal(c.positive()).build(),
+                    .add_literal(a.not())
+                    .add_literal(c.identity()).build(),
             )
             .add_clause(
                 ClauseBuilder::new()
-                    .add_literal(b.complement())
-                    .add_literal(c.complement()).build(),
+                    .add_literal(b.not())
+                    .add_literal(c.not()).build(),
             );
 
         assert_eq!($builder.build(formula).solve(), Satisfiability::SAT);
@@ -55,6 +57,7 @@ macro_rules! sat_tests {
 
     #[test]
     fn case_3() {
+        pretty_env_logger::try_init();
         /*
            c1 = (¬p1 ∨ p2)
            c2 = (¬p1 ∨ p3 ∨ p5)
@@ -75,32 +78,32 @@ macro_rules! sat_tests {
         let p7 = Literal::new("p7".to_string());
 
         let c1 = ClauseBuilder::new()
-            .add_literal(p1.complement())
-            .add_literal(p2.positive()).build();
+            .add_literal(p1.not())
+            .add_literal(p2.identity()).build();
         let c2 = ClauseBuilder::new()
-            .add_literal(p1.complement())
-            .add_literal(p3.positive())
-            .add_literal(p5.positive()).build();
+            .add_literal(p1.not())
+            .add_literal(p3.identity())
+            .add_literal(p5.identity()).build();
         let c3 = ClauseBuilder::new()
-            .add_literal(p2.complement())
-            .add_literal(p4.positive()).build();
+            .add_literal(p2.not())
+            .add_literal(p4.identity()).build();
         let c4 = ClauseBuilder::new()
-            .add_literal(p3.complement())
-            .add_literal(p4.complement()).build();
+            .add_literal(p3.not())
+            .add_literal(p4.not()).build();
         let c5 = ClauseBuilder::new()
-            .add_literal(p1.positive())
-            .add_literal(p5.positive())
-            .add_literal(p2.complement()).build();
+            .add_literal(p1.identity())
+            .add_literal(p5.identity())
+            .add_literal(p2.not()).build();
         let c6 = ClauseBuilder::new()
-            .add_literal(p2.positive())
-            .add_literal(p3.positive()).build();
+            .add_literal(p2.identity())
+            .add_literal(p3.identity()).build();
         let c7 = ClauseBuilder::new()
-            .add_literal(p2.positive())
-            .add_literal(p3.complement())
-            .add_literal(p7.positive()).build();
+            .add_literal(p2.identity())
+            .add_literal(p3.not())
+            .add_literal(p7.identity()).build();
         let c8 = ClauseBuilder::new()
-            .add_literal(p6.positive())
-            .add_literal(p5.complement()).build();
+            .add_literal(p6.identity())
+            .add_literal(p5.not()).build();
 
         let formula = CNF::new()
             .add_clause(c1)
@@ -117,6 +120,7 @@ macro_rules! sat_tests {
 
     #[test]
     fn case_4() {
+        pretty_env_logger::try_init();
         /*
            (x∨y∨z)∧(x∨y∨¬z)∧(x∨¬y∨z)∧(x∨¬y∨¬z)∧(¬x∨y∨z)∧(¬x∨y∨¬z)∧(¬x∨¬y∨z)∧(¬x∨¬y∨¬z)
         */
@@ -126,44 +130,44 @@ macro_rules! sat_tests {
         let z = Literal::new("z".to_string());
 
         let c1 = ClauseBuilder::new()
-            .add_literal(x.positive())
-            .add_literal(y.positive())
-            .add_literal(z.positive()).build();
+            .add_literal(x.identity())
+            .add_literal(y.identity())
+            .add_literal(z.identity()).build();
 
         let c2 = ClauseBuilder::new()
-            .add_literal(x.positive())
-            .add_literal(y.positive())
-            .add_literal(z.complement()).build();
+            .add_literal(x.identity())
+            .add_literal(y.identity())
+            .add_literal(z.not()).build();
 
         let c3 = ClauseBuilder::new()
-            .add_literal(x.positive())
-            .add_literal(y.complement())
-            .add_literal(z.positive()).build();
+            .add_literal(x.identity())
+            .add_literal(y.not())
+            .add_literal(z.identity()).build();
 
         let c4 = ClauseBuilder::new()
-            .add_literal(x.positive())
-            .add_literal(y.complement())
-            .add_literal(z.complement()).build();
+            .add_literal(x.identity())
+            .add_literal(y.not())
+            .add_literal(z.not()).build();
 
         let c5 = ClauseBuilder::new()
-            .add_literal(x.complement())
-            .add_literal(y.positive())
-            .add_literal(z.positive()).build();
+            .add_literal(x.not())
+            .add_literal(y.identity())
+            .add_literal(z.identity()).build();
 
         let c6 = ClauseBuilder::new()
-            .add_literal(x.complement())
-            .add_literal(y.positive())
-            .add_literal(z.complement()).build();
+            .add_literal(x.not())
+            .add_literal(y.identity())
+            .add_literal(z.not()).build();
 
         let c7 = ClauseBuilder::new()
-            .add_literal(x.complement())
-            .add_literal(y.complement())
-            .add_literal(z.positive()).build();
+            .add_literal(x.not())
+            .add_literal(y.not())
+            .add_literal(z.identity()).build();
 
         let c8 = ClauseBuilder::new()
-            .add_literal(x.complement())
-            .add_literal(y.complement())
-            .add_literal(z.complement()).build();
+            .add_literal(x.not())
+            .add_literal(y.not())
+            .add_literal(z.not()).build();
 
         let formula = CNF::new()
             .add_clause(c1)

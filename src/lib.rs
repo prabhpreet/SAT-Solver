@@ -29,7 +29,7 @@ pub trait Solver {
     fn solve(&mut self) -> Satisfiability;
 }
 
-pub mod dpll;
+pub mod sdpll;
 pub mod pdpll;
 pub mod tests;
 pub mod dimacs;

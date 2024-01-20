@@ -1,5 +1,7 @@
 //CNF Definitions
-use std::{collections::{HashMap, HashSet}, vec, sync::Arc};
+use std::{collections::{HashMap, HashSet}, vec, sync::Arc, cell::Ref};
+
+use log::debug;
 
 use crate::dimacs::DimacsCnf;
 
@@ -21,26 +23,33 @@ impl RefLiteral {
         RefLiteral(Arc::new(Literal(name)))
     }
 
-    pub fn positive(&self) -> SignedLiteral {
-        SignedLiteral::Literal(self.clone())
+    pub fn identity(&self) -> SignedLiteral {
+        SignedLiteral::Id(self.clone())
     }
 
-    pub fn complement(&self) -> SignedLiteral {
-        SignedLiteral::Complement(self.clone())
+    pub fn not(&self) -> SignedLiteral {
+        SignedLiteral::Not(self.clone())
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum SignedLiteral {
-    Literal(RefLiteral),
-    Complement(RefLiteral),
+    Id(RefLiteral),
+    Not(RefLiteral),
 }
 
 impl SignedLiteral {
     pub fn literal(&self) -> RefLiteral {
         match self {
-            SignedLiteral::Literal(literal) => literal.clone(),
-            SignedLiteral::Complement(literal) => literal.clone(),
+            SignedLiteral::Id(literal) => literal.clone(),
+            SignedLiteral::Not(literal) => literal.clone(),
+        }
+    }
+
+    pub fn complement(&self) -> SignedLiteral {
+        match self {
+            SignedLiteral::Id(literal) => literal.not(),
+            SignedLiteral::Not(literal) => literal.identity(),
         }
     }
 
@@ -52,8 +61,8 @@ impl SignedLiteral {
             .clone();
 
         match self {
-            SignedLiteral::Literal(_) => value,
-            SignedLiteral::Complement(_) => value.negate(),
+            SignedLiteral::Id(_) => value,
+            SignedLiteral::Not(_) => value.negate(),
         }
     }
 }
@@ -94,6 +103,10 @@ impl Assignments {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -253,8 +266,11 @@ impl CNF {
         CNF { clauses: Vec::new() }
     }
 
+    //Insert in a sorted manner
     pub fn add_clause(mut self, clause: ClauseRef) -> Self {
-        self.clauses.push(clause);
+        //Find index
+        let index = self.clauses.iter().position(|c| c.0.literals.len() > clause.0.literals.len()).unwrap_or(0);
+        self.clauses.insert(index, clause);
         self
     }
 
@@ -289,6 +305,65 @@ impl CNF {
         self.clauses.iter().flat_map(|c| c.signed_literal())
     }
 
+    pub fn pure_literals(&self) -> HashSet<SignedLiteral> {
+        let mut pure_literals = HashSet::new();
+        let mut impure_literals = HashSet::new();
+        self.iter_literals().for_each(|l| {
+            let abs_literal = l.literal().identity();
+            let complement = l.complement();
+            if impure_literals.contains(&abs_literal) { } else {
+                if pure_literals.contains(&complement) {
+                    pure_literals.remove(&complement);
+                    impure_literals.insert(abs_literal);
+                }
+                else {
+                    pure_literals.insert(l.clone());
+                }
+            }
+        });
+        pure_literals
+    }
+
+    //Most occurences in clauses of minimum length
+    pub fn mom(&self, max_literals: usize) -> Vec<RefLiteral> {
+        //Find the clause with minimum length
+        let min_len_clause = self.clauses.iter().fold(None, |min_clause: Option<&ClauseRef>, clause| {
+            if let Some(min_clause) = min_clause {
+                if clause.0.literals.len() < min_clause.0.literals.len() {
+                    Some(clause)
+                } else {
+                    Some(min_clause)
+                }
+            }
+            else {
+                Some(clause)
+            }
+        });
+
+        //let min_len_clause = self.clauses.first();
+
+        if let Some(min_len_clause) = min_len_clause  {
+            let mut literal_counts = HashMap::new();
+
+            for signed_literal in self.iter_literals() {
+                let entry = literal_counts.entry(signed_literal.literal()).or_insert(0usize); 
+                *entry += 1;
+            }
+
+            //Find the literal with the maximum count
+            let mut literal_counts : Vec<(RefLiteral,usize)> = min_len_clause.0.literals.iter().map(|literal| {
+                let literal = literal.literal();
+                let count = literal_counts.get(&literal).unwrap_or(&0usize);
+                (literal,*count)
+            }).collect();
+            literal_counts.sort_by(|a,b| b.1.cmp(&a.1));
+            literal_counts.into_iter().take(max_literals).map(|(literal,_)| literal).collect()
+        }
+        else {
+            vec![]
+        }
+    }
+
 }
 
 impl From<DimacsCnf> for CNF {
@@ -299,9 +374,9 @@ impl From<DimacsCnf> for CNF {
             for literal in clause.iter() {
                 let lname = literal.abs().to_string();
                 if *literal > 0 {
-                    c = c.add_literal(Literal::new(lname).positive());
+                    c = c.add_literal(Literal::new(lname).identity());
                 } else {
-                    c = c.add_literal(Literal::new(lname).complement());
+                    c = c.add_literal(Literal::new(lname).not());
                 }
             }
             cnf = cnf.add_clause(c.build());
@@ -342,32 +417,32 @@ mod tests {
         let p7 = Literal::new("p7".to_string());
 
         let c1 = ClauseBuilder::new()
-            .add_literal(p1.complement())
-            .add_literal(p2.positive()).build();
+            .add_literal(p1.not())
+            .add_literal(p2.identity()).build();
         let c2 = ClauseBuilder::new()
-            .add_literal(p1.complement())
-            .add_literal(p3.positive())
-            .add_literal(p5.positive()).build();
+            .add_literal(p1.not())
+            .add_literal(p3.identity())
+            .add_literal(p5.identity()).build();
         let c3 = ClauseBuilder::new()
-            .add_literal(p2.complement())
-            .add_literal(p4.positive()).build();
+            .add_literal(p2.not())
+            .add_literal(p4.identity()).build();
         let c4 = ClauseBuilder::new()
-            .add_literal(p3.complement())
-            .add_literal(p4.complement()).build();
+            .add_literal(p3.not())
+            .add_literal(p4.not()).build();
         let c5 = ClauseBuilder::new()
-            .add_literal(p1.positive())
-            .add_literal(p5.positive())
-            .add_literal(p2.complement()).build();
+            .add_literal(p1.identity())
+            .add_literal(p5.identity())
+            .add_literal(p2.not()).build();
         let c6 = ClauseBuilder::new()
-            .add_literal(p2.positive())
-            .add_literal(p3.positive()).build();
+            .add_literal(p2.identity())
+            .add_literal(p3.identity()).build();
         let c7 = ClauseBuilder::new()
-            .add_literal(p2.positive())
-            .add_literal(p3.complement())
-            .add_literal(p7.positive()).build();
+            .add_literal(p2.identity())
+            .add_literal(p3.not())
+            .add_literal(p7.identity()).build();
         let c8 = ClauseBuilder::new()
-            .add_literal(p6.positive())
-            .add_literal(p5.complement()).build();
+            .add_literal(p6.identity())
+            .add_literal(p5.not()).build();
 
         {
             let mut assignments = Assignments::new();
@@ -384,7 +459,7 @@ mod tests {
             println!("c: {:?}",c);
             match c {
                 ClauseValue::Clause(c) => {
-                    assert_eq!( c.is_unit_clause(), Some(p1.complement()));
+                    assert_eq!( c.is_unit_clause(), Some(p1.not()));
                 }
                 _ => panic!("Expected clause"),
             }
