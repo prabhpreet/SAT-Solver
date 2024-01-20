@@ -1,5 +1,5 @@
 //CNF Definitions
-use std::{collections::{HashMap, HashSet}, vec};
+use std::{collections::{HashMap, HashSet}, vec, sync::Arc};
 
 use crate::dimacs::DimacsCnf;
 
@@ -8,8 +8,17 @@ use crate::dimacs::DimacsCnf;
 pub struct Literal(String);
 
 impl Literal {
-    pub fn new(name: String) -> Literal {
-        Literal(name)
+    pub fn new(name: String) -> RefLiteral {
+        RefLiteral::new(name)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+pub struct RefLiteral(Arc<Literal>);
+
+impl RefLiteral {
+    pub fn new(name: String) -> RefLiteral {
+        RefLiteral(Arc::new(Literal(name)))
     }
 
     pub fn positive(&self) -> SignedLiteral {
@@ -23,12 +32,12 @@ impl Literal {
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum SignedLiteral {
-    Literal(Literal),
-    Complement(Literal),
+    Literal(RefLiteral),
+    Complement(RefLiteral),
 }
 
 impl SignedLiteral {
-    pub fn literal(&self) -> Literal {
+    pub fn literal(&self) -> RefLiteral {
         match self {
             SignedLiteral::Literal(literal) => literal.clone(),
             SignedLiteral::Complement(literal) => literal.clone(),
@@ -67,19 +76,19 @@ impl LiteralValue {
 }
 
 #[derive(Debug,PartialEq, Clone)]
-pub struct Assignments(HashMap<Literal, LiteralValue>);
+pub struct Assignments(HashMap<RefLiteral, LiteralValue>);
 
 impl Assignments {
     pub fn new() -> Assignments {
         Assignments(HashMap::new())
     }
 
-    pub fn assign(&mut self, literal: Literal, value: LiteralValue) -> &mut Self {
+    pub fn assign(&mut self, literal: RefLiteral, value: LiteralValue) -> &mut Self {
         self.0.insert(literal, value);
         self
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&Literal, &LiteralValue)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&RefLiteral, &LiteralValue)> {
         self.0.iter()
     }
 
@@ -249,15 +258,6 @@ impl CNF {
         self.clauses.iter().flat_map(|c| c.signed_literal())
     }
 
-    pub fn unassigned_literals(&self) -> HashSet<Literal> {
-        let mut unassigned_literals = HashSet::new();
-        for clause in self.clauses.iter() {
-            for literal in clause.literals.iter() {
-                unassigned_literals.insert(literal.literal().clone());
-            }
-        }
-        unassigned_literals
-    }
 }
 
 impl From<DimacsCnf> for CNF {
