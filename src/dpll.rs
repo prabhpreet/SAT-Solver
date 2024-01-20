@@ -1,18 +1,32 @@
 use crate::{
-    definitions::{Assignments, CNFValue, LiteralValue, Satisfiability, CNF},
-    Solver,
+    definitions::{Assignments, CNFValue, LiteralValue, Satisfiability, CNF, SignedLiteral},
+    Solver, SolverBuilder,
 };
-use rand::Rng;
+use rand::{Rng, seq::IteratorRandom, rngs, thread_rng};
+use log::debug;
+
+pub struct DPLLSolverBuilder {
+}
+
+impl DPLLSolverBuilder {
+    pub fn new() -> Self {
+        DPLLSolverBuilder { }
+    }
+
+}
+
+impl SolverBuilder for DPLLSolverBuilder {
+    fn build(self, formula: CNF) -> Box<dyn Solver> {
+        Box::new(DPLLSolver{formula})
+    }
+}
 
 pub struct DPLLSolver {
     formula: CNF,
 }
 
 impl Solver for DPLLSolver {
-    fn new(formula: CNF) -> Self {
-        DPLLSolver { formula }
-    }
-    fn solve(self) -> Satisfiability {
+    fn solve(&mut self) -> Satisfiability {
         self.dpll_recursive(CNFValue::Formula(self.formula.clone()), Assignments::new())
             .unwrap()
     }
@@ -27,64 +41,53 @@ impl DPLLSolver {
     fn dpll_recursive(&self, formula: CNFValue, m: Assignments) -> CNFValue {
         match formula.evaluate(&m) {
             CNFValue::Formula(f) => {
-                
-                let unassigned_literals = f.unassigned_literals(&m);
-
-                let mut m = Assignments::new();
                 //Unit propogation- unit p becomes a unit literal for some clause
-                for clause in f.clauses() {
-                    for l in unassigned_literals.iter() {
-                        if clause.is_unit_clause(l.clone().positive()) {
-                            println!(
-                                "Unit propogation: Clause {:?}, {:?}",
-                                clause,
-                                l.clone().positive()
-                            );
-                            m.assign(l.clone(), LiteralValue::True);
-                            return self.dpll_recursive(CNFValue::Formula(f.clone()), m);
+                let m = || -> Option<Assignments> {
+                    for clause in f.clauses() {
+                        if let Some(l) = clause.is_unit_clause() {
+                            let value = match l {
+                                SignedLiteral::Literal(_) => LiteralValue::True,
+                                SignedLiteral::Complement(_) => LiteralValue::False,
+                            };
+                            debug!("Unit propogation: Clause {:?}, {:?}", clause, value);
+                            return Some(Assignments::new().assign(l.literal(), value).to_owned());
                         }
                     }
-                }
+                    None
+                }();
 
-                for clause in f.clauses() {
-                    for l in unassigned_literals.iter() {
-                        if clause.is_unit_clause(l.clone().negated()) {
-                            println!(
-                                "Unit propogation: Clause {:?}, {:?}",
-                                clause,
-                                l.clone().negated()
-                            );
-                            m.assign(l.clone(), LiteralValue::False);
-                            return self.dpll_recursive(CNFValue::Formula(f.clone()), m);
-                        }
-                    }
+                if let Some(m) = m {
+                    return self.dpll_recursive(CNFValue::Formula(f.clone()), m);
                 }
 
                 //Decision: If at this point in time we don't find a unit literal or reach a base case, let's make a decision
 
                 //First decision: Choose an unassigned literal p and a random bit b in {0,1} and check for satisfiability
-                let p = unassigned_literals
-                    .iter()
-                    .nth(rand::thread_rng().gen_range(0..unassigned_literals.len()))
-                    .unwrap();
+                let p = f.iter_literals()
+                    .choose(&mut thread_rng()).unwrap().literal();
                 let value = if rand::thread_rng().gen_bool(0.5) {
                     LiteralValue::True
                 } else {
                     LiteralValue::False
                 };
 
-                println!("Set {:?} to {:?}", p, value);
-                let mut m1 = m.clone();
-                m1.assign(p.clone(), value);
-                if self.dpll_recursive(CNFValue::Formula(f.clone()),m1) == CNFValue::SAT {
-                    println!("SAT: {:?}", m);
+                debug!("Set {:?} to {:?}", p, value);
+                if self.dpll_recursive(
+                    CNFValue::Formula(f.clone()),
+                    Assignments::new().assign(p.clone(), value).to_owned(),
+                ) == CNFValue::SAT
+                {
+                    debug!("SAT: {:?}", m);
                     return CNFValue::SAT;
                 }
                 // Let's backtrack in case the first decision doesn't work out
                 else {
-                    let mut m2 = m.clone();
-                    m2.assign(p.clone(), value.negate());
-                    return self.dpll_recursive(CNFValue::Formula(f.clone()),m2);
+                    return self.dpll_recursive(
+                        CNFValue::Formula(f.clone()),
+                        Assignments::new()
+                            .assign(p.clone(), value.negate())
+                            .to_owned(),
+                    );
                 }
             }
 
@@ -92,4 +95,10 @@ impl DPLLSolver {
             v => v,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    crate::tests::sat_tests!(DPLLSolverBuilder::new());
 }

@@ -1,6 +1,8 @@
 //CNF Definitions
 use std::{collections::{HashMap, HashSet}, vec};
 
+use crate::dimacs::DimacsCnf;
+
 //Literal identified by its unique name
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct Literal(String);
@@ -14,22 +16,22 @@ impl Literal {
         SignedLiteral::Literal(self.clone())
     }
 
-    pub fn negated(&self) -> SignedLiteral {
-        SignedLiteral::NegatedLiteral(self.clone())
+    pub fn complement(&self) -> SignedLiteral {
+        SignedLiteral::Complement(self.clone())
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum SignedLiteral {
     Literal(Literal),
-    NegatedLiteral(Literal),
+    Complement(Literal),
 }
 
 impl SignedLiteral {
     pub fn literal(&self) -> Literal {
         match self {
             SignedLiteral::Literal(literal) => literal.clone(),
-            SignedLiteral::NegatedLiteral(literal) => literal.clone(),
+            SignedLiteral::Complement(literal) => literal.clone(),
         }
     }
 
@@ -42,7 +44,7 @@ impl SignedLiteral {
 
         match self {
             SignedLiteral::Literal(_) => value,
-            SignedLiteral::NegatedLiteral(_) => value.negate(),
+            SignedLiteral::Complement(_) => value.negate(),
         }
     }
 }
@@ -72,8 +74,17 @@ impl Assignments {
         Assignments(HashMap::new())
     }
 
-    pub fn assign(&mut self, literal: Literal, value: LiteralValue) {
+    pub fn assign(&mut self, literal: Literal, value: LiteralValue) -> &mut Self {
         self.0.insert(literal, value);
+        self
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&Literal, &LiteralValue)> {
+        self.0.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 }
 
@@ -122,7 +133,7 @@ impl Clause {
         self
     }
 
-    pub fn literals(&self) -> impl Iterator<Item = &SignedLiteral> {
+    pub fn signed_literal(&self) -> impl Iterator<Item = &SignedLiteral> {
         self.literals.iter()
     }
 
@@ -155,10 +166,15 @@ impl Clause {
         }
     }
 
-    pub fn is_unit_clause(&self, literal: SignedLiteral) -> bool {
+    pub fn is_unit_clause(&self) -> Option<SignedLiteral> {
         //C is an unit clause under m if a literal l in C is unassigned and the rest are false
         // l is a unit literal
-        self.literals.get(&literal).is_some() && self.literals.len() == 1
+        if self.literals.len() == 1 {
+            self.literals.iter().next().cloned()
+        }
+        else {
+            None
+        }
     }
 }
 
@@ -190,7 +206,6 @@ impl CNFValue {
         }
     }
 }
-
 
 
 impl CNF {
@@ -230,19 +245,37 @@ impl CNF {
         }
     }
 
-    pub fn unassigned_literals(&self, assignments: &Assignments) -> HashSet<Literal> {
+    pub fn iter_literals(&self) -> impl Iterator<Item = &SignedLiteral> {
+        self.clauses.iter().flat_map(|c| c.signed_literal())
+    }
+
+    pub fn unassigned_literals(&self) -> HashSet<Literal> {
         let mut unassigned_literals = HashSet::new();
         for clause in self.clauses.iter() {
             for literal in clause.literals.iter() {
-                match literal.evaluate(assignments) {
-                    LiteralValue::Unassigned => {
-                        unassigned_literals.insert(literal.literal().clone());
-                    }
-                    _ => {}
-                }
+                unassigned_literals.insert(literal.literal().clone());
             }
         }
         unassigned_literals
+    }
+}
+
+impl From<DimacsCnf> for CNF {
+    fn from(dimacs_cnf: DimacsCnf) -> Self {
+        let mut cnf = CNF::new();
+        for clause in dimacs_cnf.clauses() {
+            let mut c = Clause::new();
+            for literal in clause.iter() {
+                let lname = literal.abs().to_string();
+                if *literal > 0 {
+                    c = c.add_literal(Literal::new(lname).positive());
+                } else {
+                    c = c.add_literal(Literal::new(lname).complement());
+                }
+            }
+            cnf = cnf.add_clause(c);
+        }
+        cnf
     }
 }
 
@@ -278,32 +311,32 @@ mod tests {
         let p7 = Literal::new("p7".to_string());
 
         let c1 = Clause::new()
-            .add_literal(p1.negated())
+            .add_literal(p1.complement())
             .add_literal(p2.positive());
         let c2 = Clause::new()
-            .add_literal(p1.negated())
+            .add_literal(p1.complement())
             .add_literal(p3.positive())
             .add_literal(p5.positive());
         let c3 = Clause::new()
-            .add_literal(p2.negated())
+            .add_literal(p2.complement())
             .add_literal(p4.positive());
         let c4 = Clause::new()
-            .add_literal(p3.negated())
-            .add_literal(p4.negated());
+            .add_literal(p3.complement())
+            .add_literal(p4.complement());
         let c5 = Clause::new()
             .add_literal(p1.positive())
             .add_literal(p5.positive())
-            .add_literal(p2.negated());
+            .add_literal(p2.complement());
         let c6 = Clause::new()
             .add_literal(p2.positive())
             .add_literal(p3.positive());
         let c7 = Clause::new()
             .add_literal(p2.positive())
-            .add_literal(p3.negated())
+            .add_literal(p3.complement())
             .add_literal(p7.positive());
         let c8 = Clause::new()
             .add_literal(p6.positive())
-            .add_literal(p5.negated());
+            .add_literal(p5.complement());
 
         {
             let mut assignments = Assignments::new();
@@ -320,8 +353,7 @@ mod tests {
             println!("c: {:?}",c);
             match c {
                 ClauseValue::Clause(c) => {
-                    assert!( c.is_unit_clause(p1.negated()));
-                    assert!(!c.is_unit_clause(p1.positive()));
+                    assert_eq!( c.is_unit_clause(), Some(p1.complement()));
                 }
                 _ => panic!("Expected clause"),
             }
