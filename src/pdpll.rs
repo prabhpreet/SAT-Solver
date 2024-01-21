@@ -83,7 +83,7 @@ impl PDPLLSolver {
         match formula.evaluate(&m) {
             CNFValue::Formula(f) => {
                 //Unit clause propogation- unit p becomes a unit literal for some clause
-                let m = f.clauses().par_bridge().find_map_any(|clause| {
+                let m = f.clauses().find_map(|clause| {
                     if let Some(l) = clause.is_unit_clause() {
                         let value = match l {
                             SignedLiteral::Id(_) => LiteralValue::True,
