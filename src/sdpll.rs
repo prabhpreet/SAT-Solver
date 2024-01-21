@@ -52,7 +52,7 @@ impl Solver for DPLLSolver {
 }
 
 #[derive(Debug,PartialEq)]
-//Next iteration decision instruction
+//Next iteration decision instruction for choosing variable to assign
 enum DI<F: Fn(CNF)->Vec<RefLiteral>> {
     RandomDecision,
     LiteralList(Vec<RefLiteral>),
